@@ -52,7 +52,7 @@ func (rCsv *RollingCsv) Write(record []string) (err error) {
      (rCsv.maxBytes != 0 && rCsv.currentFileBytes + bytes > rCsv.maxBytes) ||
      rCsv.currentFile == nil {
 
-    err = rCsv.NextFile()
+    err = rCsv.Rollover()
     if err != nil {
       return err
     }
@@ -84,10 +84,13 @@ func (rCsv *RollingCsv) GetNextFileNumber() (n int64) {
 }
 
 
-func (rCsv *RollingCsv) NextFile() (err error) {
-  err = rCsv.currentFile.Close()
-  if err != nil {
-    return err
+func (rCsv *RollingCsv) Rollover() (err error) {
+
+  if rCsv.currentFile != nil {
+    err = rCsv.currentFile.Close()
+    if err != nil {
+      return err
+    }
   }
 
   fileNumStr := strconv.FormatInt(rCsv.currentFileNum, 10)
@@ -97,15 +100,18 @@ func (rCsv *RollingCsv) NextFile() (err error) {
     return err
   }
 
-  rCsv.currentFileWriter = csv.NewWriter(rCsv.currentFile)
-  if len(rCsv.headers) != 0 && rCsv.writeHeadersAll {
-    rCsv.Write(rCsv.headers)
-  }
-
-  rCsv.files = append(rCsv.files, fileName)
   rCsv.currentFileNum++
   rCsv.currentFileLines = 0
   rCsv.currentFileBytes = 0
+
+  rCsv.currentFileWriter = csv.NewWriter(rCsv.currentFile)
+  if len(rCsv.headers) != 0 && rCsv.writeHeadersAll {
+    rCsv.currentFileWriter.Write(rCsv.headers)
+    rCsv.currentFileBytes += int64(len(rCsv.headers))
+    rCsv.currentFileLines++
+  }
+
+  rCsv.files = append(rCsv.files, fileName)
 
   return nil
 }
